@@ -1,5 +1,16 @@
 # energyTTGO
-TTGO T-display interface to energy consumption
+TTGO T-display to visualize energy consumption as broadcasted by the P1 meter
+
+More info on P1 meter can be found on :
+ https://www.homewizard.nl/energy
+
+ API HomeWizard WiFi P1 Meter
+ https://homewizard-energy-api.readthedocs.io/
+
+ The /api/v1/data endpoint always returns the most recent measurement.
+ The update frequency depends on the device and, in case of the HWE-P1,
+ the smart meter that it is connected to.
+ With a SMR 5.0 meter, this is every second for power and every 5 minutes for gas.
 
 ### Arduino Setup:
 - add Arduino -> Preferences -> Additional Board Manager URL:<br>
