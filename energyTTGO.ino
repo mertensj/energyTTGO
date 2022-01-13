@@ -143,7 +143,7 @@ void loop() {
         //tft.drawLine(20,122,235,122,TFT_WHITE);        
         tft.drawLine(118,122,235,122,TFT_WHITE);
         Serial.println("....application=POWER_PER_DAY");
-        getDataFromP1();
+        getDataFromInfluxDB();
       }
       else
       {
@@ -152,7 +152,7 @@ void loop() {
           application=ACTIVE_POWER;
           tft.fillScreen(TFT_BLACK);  // 135x240
           Serial.println("....application=ACTIVE_POWER");
-          getDataFromInfluxDB();
+          getDataFromP1();
         }
       }
     }
