@@ -1,3 +1,25 @@
+//-------------------------------------------------------------------
+// energyTTGO - TTGO T-Display V1.0 ESP32
+//
+// Monitor electricity consumption.
+//
+// Right BUTTON
+//     Cycle through brightness levels
+//
+// Left BUTTON
+//     Cycle through 2 data display modes:
+//     1/ ACTIVE_POWER
+//        Show latest active #Watt consumption levels
+//        Also show total cummulative DAY counter (t1) in kWh
+//                + total cummulative NIGHT counter (2) in kWh
+//        This data is read directly from the P1 dongle.
+//        More info on P1 meter can be found on : https://www.homewizard.nl/energy
+//     2/ POWER_PER_DAY
+//        Show of the last 12 days the total electricity consumption.
+//        So total consumption (day(t1)+night(t2)) per 24 hour slot.
+//        This data is retrieved from an InfluxDB instance.
+//
+//-------------------------------------------------------------------
 #include <WiFi.h>
 #include <TFT_eSPI.h> 
 #include <vector> 
@@ -29,8 +51,8 @@ int application = ACTIVE_POWER;
 StaticJsonDocument<6000> doc;
 
 
-//unsigned long refresh=120000;  // 120 seconds refreash rate
-unsigned long refresh=5000;  // 5 seconds refreash rate
+unsigned long refresh=120000;  // 120 seconds refreash rate
+//unsigned long refresh=5000;  // 5 seconds refreash rate
 
 int deb00=0;  // LEFT BUTTON PUSHED
 int deb35=0;  // RIGHT BUTTON PUSHED
@@ -46,7 +68,7 @@ String tt2OLD="888.888";
 String apOLD="8888";
 
 //-------------------------------------------------------------------
-// graph
+// graph : Active Power
 int n=0;
 int p[12]={0};
 int readings[12]={0};
@@ -99,7 +121,7 @@ void loop() {
     {
       if(application==POWER_PER_DAY)
       {
-        Serial.println("..loop(POWER_PER_DAY)");
+        //Serial.println("..loop(POWER_PER_DAY)");
         getDataFromInfluxDB();
       }
     }
@@ -118,8 +140,10 @@ void loop() {
         tft.fillScreen(TFT_BLACK);  // 135x240
         //tft.fillRect(5,5,230,130,TFT_GREEN);
         //tft.fillRect(5,5,238,130,dblue);
-        tft.drawLine(20,122,235,122,TFT_WHITE);        
+        //tft.drawLine(20,122,235,122,TFT_WHITE);        
+        tft.drawLine(118,122,235,122,TFT_WHITE);
         Serial.println("....application=POWER_PER_DAY");
+        getDataFromP1();
       }
       else
       {
@@ -128,6 +152,7 @@ void loop() {
           application=ACTIVE_POWER;
           tft.fillScreen(TFT_BLACK);  // 135x240
           Serial.println("....application=ACTIVE_POWER");
+          getDataFromInfluxDB();
         }
       }
     }
@@ -259,11 +284,15 @@ void getDataFromP1()
 // ---------------------------------------------------------------------------
 void getDataFromInfluxDB()
 {
-    float daykW = 0.0;
-    float nightkW = 0.0;
-    float totalkW = 0.0;
+    int   daysNbr = 12;
+
+    float daykW[daysNbr]={0};
+    float dayCummulative[daysNbr+1]={0};
+    float nightkW[daysNbr]={0};
+    float nightCummulative[daysNbr+1]={0};
+    float totalkW[daysNbr]={0};
     
-    String endpoint ="http://192.168.0.160:8086/query?db=energydb&q=select+max(t1)+from+log+where+time++%3E=+now()-5d+group+by+time(24h)";
+    String endpoint ="http://192.168.0.160:8086/query?db=energydb&q=select+max(t1)+from+log+where+time++%3E=+now()-12d+group+by+time(24h)";
     String payload="";
 
     if ((WiFi.status() == WL_CONNECTED)) 
@@ -279,31 +308,19 @@ void getDataFromInfluxDB()
         payload.toCharArray(inp,payload.length());
         deserializeJson(doc,inp);
 
-        String tt1String00=doc["results"][0]["series"][0]["values"][0][1];
-        String tt1String01=doc["results"][0]["series"][0]["values"][1][1];
-        String tt1String02=doc["results"][0]["series"][0]["values"][2][1];
-        String tt1String03=doc["results"][0]["series"][0]["values"][3][1];
-        String tt1String04=doc["results"][0]["series"][0]["values"][4][1];  // YESTERDAY
-        String tt1String05=doc["results"][0]["series"][0]["values"][5][1];  // TODAY
-        //Serial.print("....TODAY DAY: ");
-        //Serial.println(tt1String05);
+        for(int i=0;i<=daysNbr;i++)
+        { // daysNbr = TODAY
+          dayCummulative[i] = doc["results"][0]["series"][0]["values"][i][1];
+        }
 
-        float day04 = tt1String04.toFloat();
-        float day05 = tt1String05.toFloat();
-
-        daykW = day05 - day04; // DELTA TODAY
-        //Serial.print("....DELTA DAY: ");
-        //Serial.println(daykW);
-        
-        //tft.setFreeFont(&Orbitron_Medium_16);
-        //tft.setTextColor(TFT_WHITE,TFT_BLACK);
-        //tft.drawString("T1 (kwh):",4,60+4,2);
-        //tft.setTextColor(green,TFT_BLACK);
-        //tft.drawString(String(tt1day05) ,4,10+4);
+        for(int i=0;i<daysNbr;i++)
+        { // daysNbr-1 = DELTA for TODAY
+          daykW[i] = dayCummulative[i+1] - dayCummulative[i];
+        }
       }
     }
 
-    endpoint ="http://192.168.0.160:8086/query?db=energydb&q=select+max(t2)+from+log+where+time++%3E=+now()-5d+group+by+time(24h)";
+    endpoint ="http://192.168.0.160:8086/query?db=energydb&q=select+max(t2)+from+log+where+time++%3E=+now()-12d+group+by+time(24h)";
     payload="";
 
     if ((WiFi.status() == WL_CONNECTED)) 
@@ -319,40 +336,87 @@ void getDataFromInfluxDB()
         payload.toCharArray(inp,payload.length());
         deserializeJson(doc,inp);
 
-        String tt1String00=doc["results"][0]["series"][0]["values"][0][1];
-        String tt1String01=doc["results"][0]["series"][0]["values"][1][1];
-        String tt1String02=doc["results"][0]["series"][0]["values"][2][1];
-        String tt1String03=doc["results"][0]["series"][0]["values"][3][1];
-        String tt1String04=doc["results"][0]["series"][0]["values"][4][1];  // YESTERDAY
-        String tt1String05=doc["results"][0]["series"][0]["values"][5][1];  // TODAY
-        //Serial.print("....TODAY NIGHT: ");
-        //Serial.println(tt1String05);
+        for(int i=0;i<=daysNbr;i++)
+        { // daysNbr = TODAY
+          nightCummulative[i] = doc["results"][0]["series"][0]["values"][i][1];
+        }
 
-        float day04 = tt1String04.toFloat();
-        float day05 = tt1String05.toFloat();
-
-        nightkW = day05 - day04; // DELTA TODAY
-        //Serial.print("....DELTA NIGHT: ");
-        //Serial.println(nightkW);
-        
-        //tft.setFreeFont(&Orbitron_Medium_16);
-        //tft.setTextColor(TFT_WHITE,TFT_BLACK);
-        //tft.drawString("T1 (kwh):",4,60+4,2);
-        //tft.setTextColor(green,TFT_BLACK);
-
-        //tft.drawString(String(tt1day05) ,4,10+4);
+        for(int i=0;i<daysNbr;i++)
+        { // daysNbr-1 = DELTA for TODAY
+          nightkW[i] = nightCummulative[i+1] - nightCummulative[i];
+        }
       }
     }
 
-    totalkW = daykW + nightkW;
-    Serial.print("..DELTA TOTAL: ");
-    Serial.println(totalkW);
+    for(int i=0;i<daysNbr;i++)
+        { // daysNbr-1 = TODAY
+          totalkW[i] = daykW[i] + nightkW[i];
+          //Serial.print(totalkW[i]);
+          //Serial.print(" : ");
+          //Serial.print(daykW[i]);
+          //Serial.print(" + ");
+          //Serial.print(nightkW[i]);
+          //Serial.println("");
+        }
 
     tft.setFreeFont(&Orbitron_Medium_16);
-    tft.setTextColor(TFT_WHITE,TFT_BLACK);
-    tft.drawString("T1+T2 (kwh) TODAY:",4,60+4,2);
+    tft.setTextColor(TFT_RED,TFT_BLACK);
+    tft.drawString(String(totalkW[daysNbr-1]) ,4,10+4,4); // TODAY
+
     tft.setTextColor(green,TFT_BLACK);
-    tft.drawString(String(totalkW) ,4,10+4,6);
+    int fontHight4 = 20;
+    int fontHight2 = 15;
+
+    for(int i=0;i<6;i++)
+    {
+      if(daykW[daysNbr-2-i] == 0.0) { tft.setTextColor(TFT_YELLOW,TFT_BLACK); }
+      else { tft.setTextColor(green,TFT_BLACK); }
+      tft.drawString(String(totalkW[daysNbr-2-i]) ,15,10+4+fontHight4+fontHight2*i,2);      
+    }
+
+    float readingsDay[daysNbr]={0};
+    float minimalDay;
+    float maximalDay;
+    int   pDay[daysNbr]={0};
+
+    for(int i=0;i<daysNbr;i++)
+        { // daysNbr-1 = TODAY
+          readingsDay[i] = totalkW[i];
+        }
+
+    minimalDay=readingsDay[0];
+    maximalDay=readingsDay[0];
+
+    for(int i=0;i<daysNbr;i++)
+        {
+          if(readingsDay[i]<minimalDay)   minimalDay=readingsDay[i]; 
+          if(readingsDay[i]>maximalDay)   maximalDay=readingsDay[i]; 
+        }
+
+    for(int i=0;i<daysNbr;i++)
+        {
+          pDay[i]=map(readingsDay[i],minimalDay,maximalDay,0,100);
+        }
+    
+    int color = TFT_WHITE;
+    
+    for(int i=0;i<daysNbr;i++)
+          {
+            if(daykW[i] == 0.0) { color = TFT_YELLOW; } // no day consumption => this must be weekend
+            else { color = TFT_WHITE; }
+            tft.drawLine(118+((i)*10)-1,122-pDay[i],118+((i)*10)-1,122,color);
+            tft.drawLine(118+((i)*10)+0,122-pDay[i],118+((i)*10)+0,122,color);
+            tft.drawLine(118+((i)*10)+1,122-pDay[i],118+((i)*10)+1,122,color);            
+            tft.fillCircle(118+((i)*10),122-pDay[i],3,TFT_RED);              
+          }
+
+    //for(int i=1;i<daysNbr;i++)
+    //      {
+    //        tft.drawLine(118+((i-1)*10),122-pDay[i-1],118+((i)*10),122-pDay[i],TFT_WHITE);
+    //        tft.fillCircle(118+((i-1)*10),122-pDay[i-1],2,TFT_RED);
+    //        tft.fillCircle(118+((i)*10),122-pDay[i],2,TFT_RED);
+    //      }
+
     
 }
 // ---------------------------------------------------------------------------
