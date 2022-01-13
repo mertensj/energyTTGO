@@ -11,7 +11,7 @@
 //     1/ ACTIVE_POWER
 //        Show latest active #Watt consumption levels
 //        Also show total cummulative DAY counter (t1) in kWh
-//                + total cummulative NIGHT counter (2) in kWh
+//                + total cummulative NIGHT counter (t2) in kWh
 //        This data is read directly from the P1 dongle.
 //        More info on P1 meter can be found on : https://www.homewizard.nl/energy
 //     2/ POWER_PER_DAY
