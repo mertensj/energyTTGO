@@ -3,7 +3,6 @@ TTGO T-display to visualize energy consumption as broadcasted by the P1 meter
 
 More info on P1 meter can be found on :
  https://www.homewizard.nl/energy
-
  API HomeWizard WiFi P1 Meter
  https://homewizard-energy-api.readthedocs.io/
 
