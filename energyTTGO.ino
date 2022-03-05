@@ -44,9 +44,17 @@ unsigned long currTime=0;
 #define purple 0xF14F
 #define green 0x2D51
 
-#define ACTIVE_POWER  1
-#define POWER_PER_DAY 2
+#define ACTIVE_POWER   1
+#define POWER_PER_DAY  2
+#define POWER_PER_HOUR 3
 int application = ACTIVE_POWER;
+int mode_ = 3;
+
+#define LEFT_BUTTON 0
+#define RIGHT_BUTTON 35
+
+int deb00=0;  // LEFT BUTTON PUSHED
+int deb35=0;  // RIGHT BUTTON PUSHED
 
 StaticJsonDocument<6000> doc;
 
@@ -54,8 +62,6 @@ StaticJsonDocument<6000> doc;
 unsigned long refresh=120000;  // 120 seconds refreash rate
 //unsigned long refresh=5000;  // 5 seconds refreash rate
 
-int deb00=0;  // LEFT BUTTON PUSHED
-int deb35=0;  // RIGHT BUTTON PUSHED
 
 int brightnes[5]={40,80,120,160,200};
 int b=1;
@@ -76,8 +82,8 @@ int minimal;
 int maximal;
 //-------------------------------------------------------------------
 void setup() {
-  pinMode( 0,INPUT_PULLUP);  // LEFT BUTTON
-  pinMode(35,INPUT_PULLUP);  // RIGHT BUTTON
+  pinMode(LEFT_BUTTON,INPUT_PULLUP);  // LEFT BUTTON
+  pinMode(RIGHT_BUTTON,INPUT_PULLUP);  // RIGHT BUTTON
 
   Serial.begin(115200);
   
@@ -109,26 +115,27 @@ void setup() {
 // ---------------------------------------------------------------------------
 void loop() {
 
+/*
+  if (digitalRead(LEFT_BUTTON)==0)
+  {
+    if(application==ACTIVE_POWER)  { application = POWER_PER_DAY;  tft.fillScreen(TFT_BLACK); return; }
+    if(application==POWER_PER_DAY) { application = POWER_PER_HOUR; tft.fillScreen(TFT_BLACK); return; }
+    if(application==POWER_PER_HOUR){ application = POWER_PER_DAY;  tft.fillScreen(TFT_BLACK); return; }
+  }
+  if (application==ACTIVE_POWER)  { getDataFromP1(); }
+  if (application==POWER_PER_DAY) { getDataFromInfluxDB(); }
+  if (application==POWER_PER_HOUR){ ; }
+  delay(500);
+*/  
   
   if(millis()>currTime+refresh)
   {
-    if(application==ACTIVE_POWER)
-    {
-      //Serial.println("..loop(ACTIVE_POWER)");
-      getDataFromP1();
-    }
-    else
-    {
-      if(application==POWER_PER_DAY)
-      {
-        //Serial.println("..loop(POWER_PER_DAY)");
-        getDataFromInfluxDB();
-      }
-    }
+    if(application==ACTIVE_POWER)  { getDataFromP1(); }
+    if(application==POWER_PER_DAY) { getDataFromInfluxDB(); }
     currTime=millis(); 
   }
 
-  if(digitalRead(0)==0)
+  if(digitalRead(LEFT_BUTTON)==0)
   {
     if(deb00==0)
     {
@@ -138,21 +145,31 @@ void loop() {
       {
         application=POWER_PER_DAY;
         tft.fillScreen(TFT_BLACK);  // 135x240
-        //tft.fillRect(5,5,230,130,TFT_GREEN);
-        //tft.fillRect(5,5,238,130,dblue);
-        //tft.drawLine(20,122,235,122,TFT_WHITE);        
         tft.drawLine(118,122,235,122,TFT_WHITE);
         Serial.println("....application=POWER_PER_DAY");
         getDataFromInfluxDB();
+        refresh=120000;
       }
       else
       {
         if(application==POWER_PER_DAY)
         {
-          application=ACTIVE_POWER;
+          application=POWER_PER_HOUR;
           tft.fillScreen(TFT_BLACK);  // 135x240
-          Serial.println("....application=ACTIVE_POWER");
-          getDataFromP1();
+          Serial.println("....application=POWER_PER_HOUR");
+          refresh=60000;
+          //TBD
+        }
+        else
+        {
+          if(application==POWER_PER_HOUR)
+          {
+            application=ACTIVE_POWER;
+            tft.fillScreen(TFT_BLACK);  // 135x240
+            Serial.println("....application=ACTIVE_POWER");
+            getDataFromP1();
+            refresh=1000;
+          }
         }
       }
     }
@@ -164,7 +181,7 @@ void loop() {
 
 
     
-  if(digitalRead(35)==0)
+  if(digitalRead(RIGHT_BUTTON)==0)
   {
     if(deb35==0)
     {
